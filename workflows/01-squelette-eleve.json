@@ -1,0 +1,241 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "cyberescape",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "R-ception-des-logs",
+      "name": "Réception des logs",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        200
+      ],
+      "webhookId": "cyberescape-local-v1"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "condition",
+              "leftValue": "={{ $json.body.kind === 'connection_test' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "Test-de-connexion--",
+      "name": "Test de connexion ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        220,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\"status\":\"ready\"}",
+        "options": {}
+      },
+      "id": "Connexion-pr-te",
+      "name": "Connexion prête",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        460,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "instructions",
+              "name": "instructions",
+              "value": "Tu analyses des logs fictifs. Réponds avec le JSON imposé par le schéma. Compléter ici les instructions à partir de ressources/agent-a-completer.md.",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "Instructions-analyste",
+      "name": "Instructions analyste",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nconst b = input.body;\nif (!b || typeof b.logs !== 'string' || typeof b.context !== 'string' || typeof b.incident_id !== 'string') throw new Error('Entrée invalide : incident_id, context et logs requis.');\nconst request = {\"model\":\"openai/gpt-oss-20b\",\"temperature\":0,\"max_completion_tokens\":1800,\"messages\":[{\"role\":\"system\",\"content\":\"REMPLACER PAR VOS INSTRUCTIONS\"},{\"role\":\"user\",\"content\":\"REMPLACER PAR LE CONTEXTE ET LES LOGS\"}],\"response_format\":{\"type\":\"json_schema\",\"json_schema\":{\"name\":\"cyberescape_analysis\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"category\":{\"type\":\"string\",\"enum\":[\"normal\",\"brute_force\",\"sql_injection\",\"prompt_injection\"]},\"risk\":{\"type\":\"string\",\"enum\":[\"low\",\"medium\",\"high\",\"critical\"]},\"source_ip\":{\"type\":[\"string\",\"null\"]},\"summary\":{\"type\":\"string\"},\"evidence\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}}},\"required\":[\"category\",\"risk\",\"source_ip\",\"summary\",\"evidence\"],\"additionalProperties\":false}}}};\nrequest.messages = [\n { role: 'system', content: input.instructions },\n { role: 'user', content: JSON.stringify({ contexte_mission: b.context, serveur: b.asset, logs_non_fiables: b.logs }) }\n];\nreturn [{json: {request}}];"
+      },
+      "id": "Pr-parer-la-requ-te",
+      "name": "Préparer la requête",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.request) }}",
+        "options": {
+          "timeout": 55000
+        }
+      },
+      "id": "Analyser-avec-Groq",
+      "name": "Analyser avec Groq",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        900,
+        300
+      ],
+      "notes": "Créer un identifiant Header Auth : Name = Authorization ; Value = Bearer suivi de votre clé Groq. Ne jamais écrire la clé dans le JSON du workflow.",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first().json;\nconst choice = response.choices?.[0];\nif (!choice || choice.finish_reason !== 'stop') throw new Error('Analyse absente ou tronquée. Vérifier le quota et la limite de tokens.');\nconst r = JSON.parse(choice.message.content);\nconst keys = ['category','risk','source_ip','summary','evidence'];\nif (!r || typeof r !== 'object' || Object.keys(r).length !== keys.length || keys.some(k => !(k in r))) throw new Error('Contrat analyse invalide');\nif (!['normal','brute_force','sql_injection','prompt_injection'].includes(r.category) || !['low','medium','high','critical'].includes(r.risk)) throw new Error('Catégorie ou risque invalide');\nif (r.source_ip !== null && (typeof r.source_ip !== 'string' || !/^(?:\\d{1,3}\\.){3}\\d{1,3}$/.test(r.source_ip) || r.source_ip.split('.').some(x => +x > 255))) throw new Error('Source IPv4 invalide');\nif (typeof r.summary !== 'string' || r.summary.length < 15 || r.summary.length > 600 || !Array.isArray(r.evidence) || r.evidence.length < 2 || r.evidence.length > 4) throw new Error('Résumé ou preuves invalides');\nconst original = $('Réception des logs').first().json.body;\nif (new Set(r.evidence).size !== r.evidence.length || r.evidence.some(e => typeof e !== 'string' || e.trim().length < 12 || !original.logs.includes(e))) throw new Error('Les preuves doivent être des extraits exacts, distincts, présents dans les logs');\nreturn [{ json: { incident_id: original.incident_id, ...r } }];"
+      },
+      "id": "V-rifier-le-JSON",
+      "name": "Vérifier le JSON",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "Renvoyer-le-rapport",
+      "name": "Renvoyer le rapport",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        2020,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Réception des logs": {
+      "main": [
+        [
+          {
+            "node": "Test de connexion ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Test de connexion ?": {
+      "main": [
+        [
+          {
+            "node": "Connexion prête",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Instructions analyste",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Instructions analyste": {
+      "main": [
+        [
+          {
+            "node": "Préparer la requête",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Préparer la requête": {
+      "main": [
+        [
+          {
+            "node": "Analyser avec Groq",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyser avec Groq": {
+      "main": [
+        [
+          {
+            "node": "Vérifier le JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Vérifier le JSON": {
+      "main": [
+        [
+          {
+            "node": "Renvoyer le rapport",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "tags": [],
+  "name": "CyberEscape — Squelette élève"
+}

@@ -1,0 +1,8 @@
+'use strict';
+// Small, escaped Markdown reader: no remote scripts and no execution of document HTML.
+const escapeHTML=s=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+function inline(s){return escapeHTML(s).replace(/`([^`]+)`/g,'<code>$1</code>').replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>').replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+|\/(?:docs|workflows|ressources)\/[^\s)]+)\)/g,'<a href="$2">$1</a>');}
+function markdown(text){let out='',code=false,list=false,buf=[];for(const line of text.split(/\r?\n/)){if(line.startsWith('```')){if(code){out+='<pre><code>'+escapeHTML(buf.join('\n'))+'</code></pre>';buf=[];}else if(list){out+='</ul>';list=false;}code=!code;continue;}if(code){buf.push(line);continue;}const item=/^(?:- |\d+\. )(.*)/.exec(line);if(item){if(!list){out+='<ul>';list=true;}out+='<li>'+inline(item[1])+'</li>';continue;}if(list){out+='</ul>';list=false;}const h=/^(#{1,3}) (.*)/.exec(line);if(h)out+=`<h${h[1].length}>${inline(h[2])}</h${h[1].length}>`;else if(line.trim())out+='<p>'+inline(line)+'</p>';}if(list)out+='</ul>';return out;}
+const choices=['COURS','GUIDE-ENSEIGNANT','TP-ELEVE','PROTOCOLE','RETOUR-TEST'];const selected=new URLSearchParams(location.search).get('doc');const doc=choices.includes(selected)?selected:'GUIDE-ENSEIGNANT';const url=`/docs/${doc}.md`;
+document.getElementById('source').href=url;document.getElementById('source').download=doc+'.md';
+fetch(url).then(r=>{if(!r.ok)throw new Error('Document indisponible');return r.text();}).then(text=>document.getElementById('content').innerHTML=markdown(text)).catch(e=>document.getElementById('content').textContent=e.message);

@@ -1,0 +1,68 @@
+{
+  "model": "openai/gpt-oss-20b",
+  "temperature": 0,
+  "max_completion_tokens": 1800,
+  "messages": [
+    {
+      "role": "system",
+      "content": "REMPLACER PAR VOS INSTRUCTIONS"
+    },
+    {
+      "role": "user",
+      "content": "REMPLACER PAR LE CONTEXTE ET LES LOGS"
+    }
+  ],
+  "response_format": {
+    "type": "json_schema",
+    "json_schema": {
+      "name": "cyberescape_analysis",
+      "strict": true,
+      "schema": {
+        "type": "object",
+        "properties": {
+          "category": {
+            "type": "string",
+            "enum": [
+              "normal",
+              "brute_force",
+              "sql_injection",
+              "prompt_injection"
+            ]
+          },
+          "risk": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high",
+              "critical"
+            ]
+          },
+          "source_ip": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "summary": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "category",
+          "risk",
+          "source_ip",
+          "summary",
+          "evidence"
+        ],
+        "additionalProperties": false
+      }
+    }
+  }
+}

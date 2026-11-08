@@ -1,0 +1,56 @@
+{
+  "name": "CyberEscape — Test de connexion seul",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "cyberescape",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "R-ception-des-logs",
+      "name": "Réception des logs",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        200
+      ],
+      "webhookId": "cyberescape-local-v1"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\"status\":\"ready\"}",
+        "options": {}
+      },
+      "id": "Connexion-pr-te",
+      "name": "Connexion prête",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        460,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Réception des logs": {
+      "main": [
+        [
+          {
+            "node": "Connexion prête",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "tags": []
+}
